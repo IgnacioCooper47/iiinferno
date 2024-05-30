@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generar Códigos QR</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+</head>
+<body>
+<h1>Generar Códigos QR</h1>
+<div id="qrcodes"></div>
+<script>
+    // Configuración de la API de Google Sheets
+    const apiKey = "AIzaSyDWGARCdWEbpzBzKobBr8XYDwQn5jj4e64";
+    const spreadsheetId = "1IN-Cb-q0oBL7Sl1ri9E3Vcpv_eq9X4GVRNAuDhYZGsI";
+    const range = "Sheet1!A:C"; // Ajusta según la configuración de tu hoja
+
+    function loadSheetsApi() {
+        gapi.client.setApiKey(apiKey);
+        return gapi.client.load("https://sheets.googleapis.com/$discovery/rest?version=v4");
+    }
+
+    async function getSheetData() {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: spreadsheetId,
+            range: range,
+        });
+        return response.result.values;
+    }
+
+    function updateSheetData(id, accessed) {
+        const params = {
+            spreadsheetId: spreadsheetId,
+            range: `Sheet1!C${id}`,
+            valueInputOption: "RAW",
+        };
+        const valueRangeBody = {
+            "range": `Sheet1!C${id}`,
+            "values": [[accessed]],
+        };
+        gapi.client.sheets.spreadsheets.values.update(params, valueRangeBody).then((response) => {
+            console.log(response);
+        });
+    }
+
+    async function generateQRCode() {
+        const baseUrl = "https://tu_dominio.com/page?code=";
+        const qrcodesDiv = document.getElementById('qrcodes');
+        const data = await getSheetData();
+        let startingIndex = data ? data.length + 1 : 1;
+
+        for (let i = 0; i < 10; i++) {  // Generar 10 códigos únicos
+            const uniqueId = uuid.v4();
+            const fullUrl = `${baseUrl}${uniqueId}`;
+            const qrCodeContainer = document.createElement('div');
+            qrCodeContainer.id = uniqueId;
+            qrcodesDiv.appendChild(qrCodeContainer);
+
+            // Generar el código QR
+            QRCode.toCanvas(document.getElementById(uniqueId), fullUrl, function (error) {
+                if (error) console.error(error);
+                console.log('QR Code generated!');
+            });
+
+            // Guardar en Google Sheets
+            const params = {
+                spreadsheetId: spreadsheetId,
+                range: `Sheet1!A${startingIndex}:C${startingIndex}`,
+                valueInputOption: "RAW",
+            };
+            const valueRangeBody = {
+                "range": `Sheet1!A${startingIndex}:C${startingIndex}`,
+                "majorDimension": "ROWS",
+                "values": [[uniqueId, fullUrl, "false"]],
+            };
+            gapi.client.sheets.spreadsheets.values.update(params, valueRangeBody).then((response) => {
+                console.log(response);
+            });
+
+            startingIndex++;
+        }
+    }
+
+    gapi.load("client", loadSheetsApi);
+    document.addEventListener("DOMContentLoaded", generateQRCode);
+</script>
+</body>
+</html>
